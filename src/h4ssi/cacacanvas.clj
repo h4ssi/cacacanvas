@@ -17,7 +17,8 @@
 
 (font-bounds (font))
 
-(defrecord caca-char [character foreground-color background-color])
+(defrecord CacaChar [character foreground-color background-color])
+(defrecord CompiledCacaChar [character foreground-color background-color fg-run-forward bg-run-forward fg-run-backward bg-run-backward])
 
 (defn- caca-iterator
   ([caca] (caca-iterator caca 0))
@@ -50,7 +51,7 @@
                  (reset! state new-index)
                  (char-at new-index))))))
 
-(def ts (caca-iterator (map #(->caca-char % nil nil) (seq "asdf"))))
+(def ts (caca-iterator (map #(->CacaChar % nil nil) (seq "asdf"))))
 
 (.getBeginIndex ts)
 (.getEndIndex ts)
@@ -68,6 +69,33 @@
 (.setIndex ts 3)
 (.setIndex ts 4)
 ;(.setIndex ts 5)
+
+(defn- get-fg-bg-runs-in-seq [s]
+  (loop [[{:keys [foreground-color background-color] :as p} & ps] s
+         fg-prev                                                  :no-color
+         fg-run                                                   []
+         bg-prev                                                  :no-color
+         bg-run                                                   []]
+    (if-not p
+      [fg-run bg-run]
+      (let [fg-run-next (if (= foreground-color fg-prev) (inc (peek fg-run)) 0)
+            bg-run-next (if (= background-color bg-prev) (inc (peek bg-run)) 0)]
+        (recur ps foreground-color (conj fg-run fg-run-next) background-color (conj bg-run bg-run-next))))))
+
+(get-fg-bg-runs-in-seq (map ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
+(get-fg-bg-runs-in-seq (rseq (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow])))))
+
+(defn compile-caca-chars [caca-chars]
+  (let [[backward-fg-runs backward-bg-runs] (get-fg-bg-runs-in-seq caca-chars)
+        [forward-fg-runs forward-bg-runs]   (map rseq (get-fg-bg-runs-in-seq (rseq caca-chars)))]
+    (map #(map->CompiledCacaChar (assoc %1 :fg-run-forward %2 :bg-run-forward %3 :fg-run-backward %4 :bg-run-backward %5))
+         caca-chars
+         forward-fg-runs
+         forward-bg-runs
+         backward-fg-runs
+         backward-bg-runs)))
+
+(compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
 
 (defn cacacanvas []
   (let [[fw fh fa] (font-bounds (font))
