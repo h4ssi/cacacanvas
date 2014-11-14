@@ -49,9 +49,38 @@
        (setIndex [_ new-index]
                  (when-not (<= 0 new-index length) (throw (IllegalArgumentException. (str "new-index must be within (" 0 "," length ")"))))
                  (reset! state new-index)
-                 (char-at new-index))))))
+                 (char-at new-index))
+       (getAllAttributeKeys [_] #{java.awt.font.TextAttribute/FOREGROUND java.awt.font.TextAttribute/BACKGROUND})
+       (getAttribute [_ attr] (if (= attr java.awt.font.TextAttribute/FOREGROUND)
+                                (:foreground-color (get caca @state))
+                                (:background-color (get caca @state))))
+       (getAttributes [_] (let [current (get caca @state)
+                                fg      (:foreground-color current)
+                                bg      (:background-color current)
+                                attrs   {}
+                                attrs   (if fg (assoc attrs java.awt.font.TextAttribute/FOREGROUND fg) attrs)
+                                attrs   (if fg (assoc attrs java.awt.font.TextAttribute/BACKGROUND bg) attrs)]
+                            attrs))
+       (getRunLimit [this] (.getRunLimit this #{java.awt.font.TextAttribute/FOREGROUND java.awt.font.TextAttribute/BACKGROUND}))
+       (^int getRunLimit [this ^java.text.AttributedCharacterIterator$Attribute attr]
+             (.getRunLimit this #{attr}))
+       (^int getRunLimit [this ^java.util.Set attrs]
+             (let [index   @state
+                   current (get caca index)
+                   fg      (:fg-run-forward current)
+                   bg      (:bg-run-forward current)]
+               (+ index 1 (apply min (map #(if (= % java.awt.font.TextAttribute/FOREGROUND) fg bg) attrs)))))
+       (getRunStart [this] (.getRunStart this #{java.awt.font.TextAttribute/FOREGROUND java.awt.font.TextAttribute/BACKGROUND}))
+       (^int getRunStart [this ^java.text.AttributedCharacterIterator$Attribute attr]
+             (.getRunStart this #{attr}))
+       (^int getRunStart [this ^java.util.Set attrs]
+             (let [index   @state
+                   current (get caca index)
+                   fg      (:fg-run-backward current)
+                   bg      (:bg-run-backward current)]
+               (- index (apply min (map #(if (= % java.awt.font.TextAttribute/FOREGROUND) fg bg) attrs)))))))))
 
-(def ts (caca-iterator (map #(->CacaChar % nil nil) (seq "asdf"))))
+(def ts (caca-iterator (compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))))
 
 (.getBeginIndex ts)
 (.getEndIndex ts)
@@ -68,6 +97,8 @@
 (.previous ts)
 (.setIndex ts 3)
 (.setIndex ts 4)
+(.getRunLimit ts java.awt.font.TextAttribute/FOREGROUND)
+(.getRunStart ts java.awt.font.TextAttribute/FOREGROUND)
 ;(.setIndex ts 5)
 
 (defn- get-fg-bg-runs-in-seq [s]
