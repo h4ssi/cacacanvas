@@ -17,6 +17,58 @@
 
 (font-bounds (font))
 
+(defrecord caca-char [character foreground-color background-color])
+
+(defn- caca-iterator
+  ([caca] (caca-iterator caca 0))
+  ([caca state]
+   (let [state   (atom state)
+         caca    (vec caca)
+         length  (count caca)
+         char-at #(get-in caca [% :character] java.text.CharacterIterator/DONE)
+         zdec    #(max 0 (dec %))
+         zinc    #(min length (inc %))]
+     (reify java.text.AttributedCharacterIterator
+       (clone [_] (caca-iterator caca @state))
+       (current [_] (char-at @state))
+       (first [_]
+              (reset! state 0)
+              (char-at 0))
+       (getBeginIndex [_] 0)
+       (getEndIndex [_] length)
+       (getIndex [_] @state)
+       (last [_]
+             (let [i (zdec length)]
+               (reset! state i)
+               (char-at i)))
+       (next [_] (char-at (swap! state zinc)))
+       (previous [_] (if (zero? @state)
+                       java.text.CharacterIterator/DONE
+                       (char-at (swap! state dec))))
+       (setIndex [_ new-index]
+                 (when-not (<= 0 new-index length) (throw (IllegalArgumentException. (str "new-index must be within (" 0 "," length ")"))))
+                 (reset! state new-index)
+                 (char-at new-index))))))
+
+(def ts (caca-iterator (map #(->caca-char % nil nil) (seq "asdf"))))
+
+(.getBeginIndex ts)
+(.getEndIndex ts)
+(.clone ts)
+(.current ts)
+(.first ts)
+(.getIndex ts)
+(.last ts)
+(.getIndex ts)
+(.next ts)
+(.getIndex ts)
+(.next ts)
+(.getIndex ts)
+(.previous ts)
+(.setIndex ts 3)
+(.setIndex ts 4)
+;(.setIndex ts 5)
+
 (defn cacacanvas []
   (let [[fw fh fa] (font-bounds (font))
         w          (* 10 fw)
