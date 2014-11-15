@@ -14,11 +14,21 @@
 (defn- font [] (java.awt.Font. java.awt.Font/MONOSPACED java.awt.Font/PLAIN 20))
 
 (defn- font-bounds [f]
-  (let [m (-> (proxy [javax.swing.JComponent] [])
-              (.getFontMetrics f))]
-    [(.charWidth m \space) (+ (.getAscent m) (.getDescent m)) (.getAscent m)]))
+  (let [w         (javax.swing.JWindow.)
+        c         (proxy [javax.swing.JComponent] [])
+        [w h asc] (try
+                    (doto w
+                      (.setFocusableWindowState false)
+                      (.add c java.awt.BorderLayout/CENTER)
+                      (.setVisible true))
+                    (let [g (.getGraphics c)
+                          m (.getFontMetrics g f)
+                          b (.getStringBounds m " " g)]
+                      [(.getWidth b) (.getHeight b) (.getAscent m)])
+                    (finally (.dispose w)))]
+    [(Math/round w) (Math/round h) asc]))
 
-(font-bounds (font))
+#_(font-bounds (font))
 
 (defrecord CacaChar [character foreground-color background-color])
 (defrecord CompiledCacaChar [character foreground-color background-color
