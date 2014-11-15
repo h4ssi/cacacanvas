@@ -35,7 +35,10 @@
       (is (= java.text.CharacterIterator/DONE (.current ts)))
       (is (= 8 (.getIndex ts)))
       (is (= \F (.previous ts)))
-      (is (= 7 (.getIndex ts))))
+      (is (= 7 (.getIndex ts)))
+      (is (= java.text.CharacterIterator/DONE (.setIndex ts 8)))
+      (is (thrown? IllegalArgumentException (.setIndex ts 9)))
+      (is (thrown? IllegalArgumentException (.setIndex  ts -1))))
     (testing "AttributedCharacteriterator implementation."
       (.first ts)
       (doseq [_ (range 2)]

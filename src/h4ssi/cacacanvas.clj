@@ -74,7 +74,7 @@
 
        (previous [_] (if (zero? @state)
                        java.text.CharacterIterator/DONE
-                       (char-at (swap! state dec))))
+                       (char-at (swap! state zdec))))
 
        (setIndex [_ new-index]
                  (when-not (<= 0 new-index length) (throw (IllegalArgumentException. (str "new-index must be within (" 0 "," length ")"))))
@@ -86,25 +86,13 @@
                                   java.awt.font.TextAttribute/FAMILY
                                   java.awt.font.TextAttribute/SIZE})
 
-       (getAttribute [_ attr] (cond
-                               (= attr java.awt.font.TextAttribute/FOREGROUND)
-                               (:foreground-color (get caca @state))
-
-                               (= attr java.awt.font.TextAttribute/BACKGROUND)
-                               (:background-color (get caca @state))
-
-                               (= attr java.awt.font.TextAttribute/FAMILY)
-                               java.awt.Font/MONOSPACED
-
-                               (= attr java.awt.font.TextAttribute/SIZE)
-                               20
-                               ))
+       (getAttribute [this attr] (get (.getAttributes this) attr))
 
        (getAttributes [_] (let [current (get caca @state)
                                 fg      (:foreground-color current)
                                 bg      (:background-color current)
                                 attrs   {java.awt.font.TextAttribute/FAMILY java.awt.Font/MONOSPACED
-                                         java.awt.font.TextAttribute/SIZE 20}
+                                         java.awt.font.TextAttribute/SIZE   20}
                                 attrs   (if fg (assoc attrs java.awt.font.TextAttribute/FOREGROUND fg) attrs)
                                 attrs   (if fg (assoc attrs java.awt.font.TextAttribute/BACKGROUND bg) attrs)]
                             attrs))
