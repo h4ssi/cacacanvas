@@ -151,28 +151,18 @@
          backward-bg-runs
          backward-runs)))
 
+
 #_(compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
-(def ^java.text.AttributedCharacterIterator ts
-  (caca-iterator
-   (compile-caca-chars
-    (mapv ->CacaChar
-          (seq "qqqq@@Ssss")
-          (apply concat (repeat [java.awt.Color/RED java.awt.Color/BLUE]))
-          (apply concat (repeat [java.awt.Color/YELLOW]))))))
 
 (defn cacacanvas []
   (let [[fw fh fa] (font-bounds (font))
-        w          (* 10 fw)
-        h          (* 10 fh)]
+        w          (* 4 fw)
+        h          (* 20 fh)]
     (doto (proxy [javax.swing.JComponent] []
             (isOpaque [] true)
             (paintComponent [g]
-                            #_(doseq [ww (range 10)
-                                    hh (range 10)]
-                              (.drawRect g (* ww fw) (* hh fh) fw fh)
-                              )
-                            (doseq [hh (range 10)]
-                              (.drawString g ts 0 (+ fa (* fh hh))))))
+                            (doseq [[hh ascii] (map vector (range 20) ts)]
+                              (.drawString g ascii 0 (+ fa (* fh hh))))))
       (.setMinimumSize (java.awt.Dimension. w h))
       (.setMaximumSize (java.awt.Dimension. w h))
       (.setPreferredSize (java.awt.Dimension. w h))
@@ -185,13 +175,10 @@
     (.pack)
     (.setVisible true)))
 
-(test-frame)
-
 (def gray-index (map (comp char (partial + (long \0))) (range 8)))
 (def color-index (interleave
                   (map (comp char (partial + (long \a))) (range 26))
                   (map (comp char (partial + (long \A))) (range 26))))
-color-index
 
 (defn gray-shades []
   (let [num-of-shades (count gray-index)]
@@ -220,6 +207,23 @@ color-index
 #_(colors)
 
 (def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
+
+(defn frame [w h symbols foreground-colors background-colors]
+  (->> (map ->CacaChar (seq symbols) (seq foreground-colors) (seq background-colors))
+       (partition w)
+       (map vec)
+       (take h)
+       (map (comp caca-iterator compile-caca-chars))))
+
+(def ts
+  (let [ks (concat gray-index color-index)
+        vs (map (partial get index) ks)]
+    (frame 4 20
+           ks
+           (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 vs))
+           vs)))
+
+(test-frame)
 
 (defn foo
   "I don't do a whole lot."
