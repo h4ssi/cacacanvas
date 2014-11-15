@@ -81,10 +81,7 @@
                  (reset! state new-index)
                  (char-at new-index))
 
-       (getAllAttributeKeys [_] #{java.awt.font.TextAttribute/FOREGROUND
-                                  java.awt.font.TextAttribute/BACKGROUND
-                                  java.awt.font.TextAttribute/FAMILY
-                                  java.awt.font.TextAttribute/SIZE})
+       (getAllAttributeKeys [_] (-> fw-keywords keys set))
 
        (getAttribute [this attr] (get (.getAttributes this) attr))
 
