@@ -187,6 +187,40 @@
 
 (test-frame)
 
+(def gray-index (map (comp char (partial + (long \0))) (range 8)))
+(def color-index (interleave
+                  (map (comp char (partial + (long \a))) (range 26))
+                  (map (comp char (partial + (long \A))) (range 26))))
+color-index
+
+(defn gray-shades []
+  (let [num-of-shades (count gray-index)]
+    (cons
+     java.awt.Color/WHITE
+     (rseq
+      (mapv #(java.awt.Color. (int %) (int %) (int %))
+            (take (dec num-of-shades) (iterate (partial + (/ 255 (dec num-of-shades))) 0)))))))
+
+#_(gray-shades)
+
+(defn colors []
+  (let [shades-per-color (/ (count gray-index) 2)
+        num-of-colors    (/ (count color-index) shades-per-color)
+        shades           (->> (iterate (partial + (/ 1.0 (+ shades-per-color 2))) 0)
+                              (drop 2) ; drop black and indistinguishable dark tones
+                              (take shades-per-color)
+                              (reverse))
+        colors           (->> (iterate (partial + (/ 1.0 num-of-colors)) 0)
+                              (take num-of-colors))]
+    (map #(java.awt.Color/getHSBColor %1 %2 %3)
+         (apply concat (map (partial repeat shades-per-color) colors))
+         (repeat 1.0)
+         (apply concat (repeat shades)))))
+
+#_(colors)
+
+(def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
+
 (defn foo
   "I don't do a whole lot."
   [x]
