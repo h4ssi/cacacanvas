@@ -216,14 +216,36 @@
        (map vec)
        (map (comp caca-iterator compile-caca-chars))))
 
+(defn default-colors
+  ([color-char-seq]
+   (loop [[c & cs] color-char-seq
+          rep      0]
+     (case c
+       nil
+       (repeat rep \0)
+
+       \space
+       (recur cs (inc rep))
+
+       (concat (repeat (inc rep) c) (lazy-seq (default-colors cs c))))))
+  ([[c & cs] prev-col]
+   (case c
+     nil
+     nil
+
+     \space
+     (cons prev-col (lazy-seq (default-colors cs prev-col)))
+
+     (cons c (lazy-seq (default-colors cs c))))))
+
 (defn frame-from-strings
   ([sym-string fg-string bg-string] (frame-from-strings nil nil sym-string fg-string bg-string))
   ([w sym-string fg-string bg-string] (frame-from-strings w nil sym-string fg-string bg-string))
   ([w h sym-string fg-string bg-string]
    (let [split-string #(s/split % #"(\n?\r|\r?\n)")
          sym-strings  (split-string sym-string)
-         fg-strings   (split-string fg-string)
-         bg-strings   (split-string bg-string)
+         fg-strings   (map default-colors (split-string fg-string))
+         bg-strings   (map default-colors (split-string bg-string))
          w            (or w (apply max (concat (map count sym-strings) (map count fg-strings) (map count bg-strings))))
          split-w      #(mapcat (partial partition w w nil) %)
          sym-strings  (split-w sym-strings)
@@ -255,11 +277,11 @@
         " HH \n"
         " HH \n"
         "\"\"\"\"")
-   (str "xIIx\n"
+   (str " II \n"
         "IIII\n"
         "IIII\n"
-        "xddx\n"
-        "xddx\n"
+        " dd \n"
+        " dd \n"
         "JJJJ")
    (str "oiio\n"
         "iiii\n"
