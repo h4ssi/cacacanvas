@@ -209,13 +209,6 @@
 
 (def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
 
-(defn frame [w h symbols foreground-colors background-colors]
-  (->> (map ->CacaChar (seq symbols) (seq foreground-colors) (seq background-colors))
-       (partition w)
-       (take h)
-       (map vec)
-       (map (comp caca-iterator compile-caca-chars))))
-
 (defn default-colors
   ([color-char-seq]
    (loop [[c & cs] color-char-seq
@@ -243,31 +236,30 @@
   ([w sym-string fg-string bg-string] (frame-from-strings w nil sym-string fg-string bg-string))
   ([w h sym-string fg-string bg-string]
    (let [split-string #(s/split % #"(\n?\r|\r?\n)")
-         sym-strings  (split-string sym-string)
-         fg-strings   (map default-colors (split-string fg-string))
-         bg-strings   (map default-colors (split-string bg-string))
-         w            (or w (apply max (concat (map count sym-strings) (map count fg-strings) (map count bg-strings))))
-         split-w      #(mapcat (partial partition w w nil) %)
-         sym-strings  (split-w sym-strings)
-         fg-strings   (split-w fg-strings)
-         bg-strings   (split-w bg-strings)
-         h            (or h (apply max (map count [sym-strings fg-strings bg-strings])))
-         pad-with     (fn [pad-item items] (concat items (repeat pad-item)))
-         pad-string   (fn [pad-char string] (pad-with pad-char (seq string)))
-         pad-sym      (partial pad-string \space)
-         pad-fg       (partial pad-string \0)
-         pad-bg       pad-fg
-         pad-strings  (fn [pad-per-line lines] (map pad-per-line (pad-with "" lines)))
-         crop-strings (fn [lines] (map (partial take w) (take h lines)))
-         normalize    (comp (partial apply concat) crop-strings pad-strings)
-         sym-strings  (normalize pad-sym sym-strings)
-         fg-strings   (normalize pad-fg fg-strings)
-         bg-strings   (normalize pad-bg bg-strings)
-         to-colors    #(map (partial get index) %)]
-     (frame w h
-            sym-strings
-            (to-colors fg-strings)
-            (to-colors bg-strings)))))
+         sym-strings   (split-string sym-string)
+         fg-strings    (map default-colors (split-string fg-string))
+         bg-strings    (map default-colors (split-string bg-string))
+         w             (or w (apply max (concat (map count sym-strings) (map count fg-strings) (map count bg-strings))))
+         split-w       #(mapcat (partial partition w w nil) %)
+         sym-strings   (split-w sym-strings)
+         fg-strings    (split-w fg-strings)
+         bg-strings    (split-w bg-strings)
+         h             (or h (apply max (map count [sym-strings fg-strings bg-strings])))
+         pad-with      (fn [pad-item items] (concat items (repeat pad-item)))
+         pad-string    (fn [pad-char string] (pad-with pad-char (seq string)))
+         pad-sym       (partial pad-string \space)
+         pad-fg        (partial pad-string \0)
+         pad-bg        pad-fg
+         pad-strings   (fn [pad-per-line lines] (map pad-per-line (pad-with "" lines)))
+         crop-strings  (fn [lines] (map (partial take w) (take h lines)))
+         normalize     (comp crop-strings pad-strings)
+         sym-strings   (normalize pad-sym sym-strings)
+         fg-strings    (normalize pad-fg fg-strings)
+         bg-strings    (normalize pad-bg bg-strings)
+         to-colors     (partial map (partial get index))
+         to-caca-chars #(mapv ->CacaChar %1 (to-colors %2) (to-colors %3))
+         to-iterator   (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
+     (to-iterator sym-strings fg-strings bg-strings))))
 
 (def ts
   (frame-from-strings
@@ -291,12 +283,11 @@
         "DDDD")))
 
 (def ts
-  (let [ks (concat gray-index color-index)
-        vs (map (partial get index) ks)]
-    (frame 4 20
-           ks
-           (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 vs))
-           vs)))
+  (let [ks (concat gray-index color-index)]
+    (frame-from-strings 4 20
+           (apply str ks)
+           (apply str (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 ks)))
+           (apply str ks))))
 
 (test-frame)
 
