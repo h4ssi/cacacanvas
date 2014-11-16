@@ -155,24 +155,38 @@
 
 #_(compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
 
-(defn cacacanvas []
-  (let [[fw fh fa] (font-bounds (font))
-        w          (* 4 fw)
-        h          (* 20 fh)]
-    (doto (proxy [javax.swing.JComponent] []
-            (isOpaque [] true)
-            (paintComponent [g]
-                            (doseq [[hh ascii] (map vector (range 20) ts)]
-                              (.drawString g ascii 0 (+ fa (* fh hh))))))
-      (.setMinimumSize (java.awt.Dimension. w h))
-      (.setMaximumSize (java.awt.Dimension. w h))
-      (.setPreferredSize (java.awt.Dimension. w h))
-      (.setForeground java.awt.Color/RED))))
+(defrecord CacaFrame [width height caca-iterators])
+(defprotocol CacaCanvas
+  (render-caca-frame [this caca-frame]))
 
-(defn test-frame []
+(defn cacacanvas
+  ([] (cacacanvas nil))
+  ([frame]
+   (let [[fw fh fa] (font-bounds (font))
+         frame      (atom frame)
+         size       #(let [f @frame]
+                       (if f
+                         (java.awt.Dimension. (* fw (:width f)) (* fh (:height f)))
+                         (java.awt.Dimension. 0 0)))]
+     (doto (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaCanvas] []
+             (isOpaque [] true)
+             (paintComponent [g]
+                             (let [f @frame]
+                               (when f
+                                 (doseq [[hh ascii] (map vector (range (:height f)) (:caca-iterators f))]
+                                   (.drawString g ascii 0 (+ fa (* fh hh)))))))
+             (render_caca_frame [f]
+                                (reset! frame f)
+                                (.repaint this)))
+       (.setMinimumSize (size))
+       (.setMaximumSize (size))
+       (.setPreferredSize (size))
+       (.setForeground java.awt.Color/RED)))))
+
+(defn test-frame [caca-frame]
   (doto
     (javax.swing.JFrame. "hello")
-    (.add (cacacanvas) java.awt.BorderLayout/CENTER)
+    (.add (cacacanvas caca-frame) java.awt.BorderLayout/CENTER)
     (.pack)
     (.setVisible true)))
 
@@ -258,8 +272,9 @@
          bg-strings    (normalize pad-bg bg-strings)
          to-colors     (partial map (partial get index))
          to-caca-chars #(mapv ->CacaChar %1 (to-colors %2) (to-colors %3))
-         to-iterator   (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
-     (to-iterator sym-strings fg-strings bg-strings))))
+         to-iterators  (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
+     (->CacaFrame w h
+                  (to-iterators sym-strings fg-strings bg-strings)))))
 
 (def ts
   (frame-from-strings
@@ -283,13 +298,28 @@
         "DDDD")))
 
 (def ts
+  (frame-from-strings
+   (str " @@@@ \n"
+        "@x@@x@\n"
+        "@@@@@@\n"
+        " @@@@ ")
+   (str " IIII \n"
+        "IaIIaI\n"
+        "IIIIII\n"
+        " IIII ")
+   (str "oiiiio\n"
+        "iAiiAi\n"
+        "iiiiii\n"
+        "oiiiio")))
+
+(def ts
   (let [ks (concat gray-index color-index)]
-    (frame-from-strings 4 20
+    (frame-from-strings 4
            (apply str ks)
            (apply str (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 ks)))
            (apply str ks))))
 
-(test-frame)
+(test-frame ts)
 
 (defn foo
   "I don't do a whole lot."
