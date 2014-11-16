@@ -7,7 +7,8 @@
 ; You must not remove this notice, or any other, from this software.
 
 (ns h4ssi.cacacanvas
-  (:require [clojure.tools.trace :refer :all]))
+  (:require [clojure.tools.trace :refer :all])
+  (:require [clojure.string :as s]))
 
 (trace-ns 'h4ssi.cacacanvas)
 
@@ -211,9 +212,61 @@
 (defn frame [w h symbols foreground-colors background-colors]
   (->> (map ->CacaChar (seq symbols) (seq foreground-colors) (seq background-colors))
        (partition w)
-       (map vec)
        (take h)
+       (map vec)
        (map (comp caca-iterator compile-caca-chars))))
+
+(defn frame-from-strings
+  ([sym-string fg-string bg-string] (frame-from-strings nil nil sym-string fg-string bg-string))
+  ([w sym-string fg-string bg-string] (frame-from-strings w nil sym-string fg-string bg-string))
+  ([w h sym-string fg-string bg-string]
+   (let [split-string #(s/split % #"(\n?\r|\r?\n)")
+         sym-strings  (split-string sym-string)
+         fg-strings   (split-string fg-string)
+         bg-strings   (split-string bg-string)
+         w            (or w (apply max (concat (map count sym-strings) (map count fg-strings) (map count bg-strings))))
+         split-w      #(mapcat (partial partition w w nil) %)
+         sym-strings  (split-w sym-strings)
+         fg-strings   (split-w fg-strings)
+         bg-strings   (split-w bg-strings)
+         h            (or h (apply max (map count [sym-strings fg-strings bg-strings])))
+         pad-with     (fn [pad-item items] (concat items (repeat pad-item)))
+         pad-string   (fn [pad-char string] (pad-with pad-char (seq string)))
+         pad-sym      (partial pad-string \space)
+         pad-fg       (partial pad-string \0)
+         pad-bg       pad-fg
+         pad-strings  (fn [pad-per-line lines] (map pad-per-line (pad-with "" lines)))
+         crop-strings (fn [lines] (map (partial take w) (take h lines)))
+         normalize    (comp (partial apply concat) crop-strings pad-strings)
+         sym-strings  (normalize pad-sym sym-strings)
+         fg-strings   (normalize pad-fg fg-strings)
+         bg-strings   (normalize pad-bg bg-strings)
+         to-colors    #(map (partial get index) %)]
+     (frame w h
+            sym-strings
+            (to-colors fg-strings)
+            (to-colors bg-strings)))))
+
+(def ts
+  (frame-from-strings
+   (str " @@ \n"
+        "@@@@\n"
+        "@@@@\n"
+        " HH \n"
+        " HH \n"
+        "\"\"\"\"")
+   (str "xIIx\n"
+        "IIII\n"
+        "IIII\n"
+        "xddx\n"
+        "xddx\n"
+        "JJJJ")
+   (str "oiio\n"
+        "iiii\n"
+        "iiii\n"
+        "oDDo\n"
+        "oDDo\n"
+        "DDDD")))
 
 (def ts
   (let [ks (concat gray-index color-index)
