@@ -223,7 +223,7 @@
 
 (def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
 
-(defn default-colors
+(defn spaces-to-colors
   ([color-char-seq]
    (loop [[c & cs] color-char-seq
           rep      0]
@@ -234,25 +234,31 @@
        \space
        (recur cs (inc rep))
 
-       (concat (repeat (inc rep) c) (lazy-seq (default-colors cs c))))))
+       (concat (repeat (inc rep) c) (lazy-seq (spaces-to-colors cs c))))))
   ([[c & cs] prev-col]
    (case c
      nil
      nil
 
      \space
-     (cons prev-col (lazy-seq (default-colors cs prev-col)))
+     (cons prev-col (lazy-seq (spaces-to-colors cs prev-col)))
 
-     (cons c (lazy-seq (default-colors cs c))))))
+     (cons c (lazy-seq (spaces-to-colors cs c))))))
 
 (defn frame-from-strings
-  ([sym-string fg-string bg-string] (frame-from-strings nil nil sym-string fg-string bg-string))
-  ([w sym-string fg-string bg-string] (frame-from-strings w nil sym-string fg-string bg-string))
+  ([sym-string fg-string bg-string]
+   (frame-from-strings nil nil sym-string fg-string bg-string nil nil nil))
+  ([w sym-string fg-string bg-string]
+   (frame-from-strings w nil sym-string fg-string bg-string nil nil nil))
+  ([w sym-string fg-string bg-string default-sym default-fg default-bg]
+   (frame-from-strings w nil sym-string fg-string bg-string default-sym default-fg default-bg))
   ([w h sym-string fg-string bg-string]
+   (frame-from-strings w h sym-string fg-string bg-string nil nil nil))
+  ([w h sym-string fg-string bg-string default-sym default-fg default-bg]
    (let [split-string #(s/split % #"(\n?\r|\r?\n)")
          sym-strings   (split-string sym-string)
-         fg-strings    (map default-colors (split-string fg-string))
-         bg-strings    (map default-colors (split-string bg-string))
+         fg-strings    (split-string fg-string)
+         bg-strings    (split-string bg-string)
          w             (or w (apply max (concat (map count sym-strings) (map count fg-strings) (map count bg-strings))))
          split-w       #(mapcat (partial partition w w nil) %)
          sym-strings   (split-w sym-strings)
@@ -261,15 +267,17 @@
          h             (or h (apply max (map count [sym-strings fg-strings bg-strings])))
          pad-with      (fn [pad-item items] (concat items (repeat pad-item)))
          pad-string    (fn [pad-char string] (pad-with pad-char (seq string)))
-         pad-sym       (partial pad-string \space)
-         pad-fg        (partial pad-string \0)
-         pad-bg        pad-fg
+         pad-sym       (partial pad-string (or default-sym \space))
+         pad-fg        (partial pad-string (or default-fg \space))
+         pad-bg        (partial pad-string (or default-bg \0))
          pad-strings   (fn [pad-per-line lines] (map pad-per-line (pad-with "" lines)))
          crop-strings  (fn [lines] (map (partial take w) (take h lines)))
          normalize     (comp crop-strings pad-strings)
          sym-strings   (normalize pad-sym sym-strings)
          fg-strings    (normalize pad-fg fg-strings)
          bg-strings    (normalize pad-bg bg-strings)
+         fg-strings    (map spaces-to-colors fg-strings)
+         bg-strings    (map spaces-to-colors bg-strings)
          to-colors     (partial map (partial get index))
          to-caca-chars #(mapv ->CacaChar %1 (to-colors %2) (to-colors %3))
          to-iterators  (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
