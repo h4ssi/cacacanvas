@@ -7,10 +7,10 @@
 ; You must not remove this notice, or any other, from this software.
 
 (ns h4ssi.cacacanvas
-  (:require [clojure.tools.trace :refer :all])
+  #_(:require [clojure.tools.trace :refer :all])
   (:require [clojure.string :as s]))
 
-(trace-ns 'h4ssi.cacacanvas)
+#_(trace-ns 'h4ssi.cacacanvas)
 
 (defn- font [] (java.awt.Font. java.awt.Font/MONOSPACED java.awt.Font/PLAIN 20))
 
@@ -223,6 +223,8 @@
 
 (def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
 
+(defn char->Color [c] (get index c))
+
 (defn spaces-to-colors
   ([color-char-seq]
    (loop [[c & cs] color-char-seq
@@ -284,7 +286,7 @@
      (->CacaFrame w h
                   (to-iterators sym-strings fg-strings bg-strings)))))
 
-(def ts
+(defn caca-tree []
   (frame-from-strings
    (str " @@ \n"
         "@@@@\n"
@@ -305,7 +307,7 @@
         "oDDo\n"
         "DDDD")))
 
-(def ts
+(defn caca-shape []
   (frame-from-strings
    (str " @@@@ \n"
         "@x@@x@\n"
@@ -320,16 +322,11 @@
         "iiiiii\n"
         "oiiiio")))
 
-(def ts
+(defn caca-palette []
   (let [ks (concat gray-index color-index)]
     (frame-from-strings 4
            (apply str ks)
            (apply str (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 ks)))
            (apply str ks))))
 
-(test-frame ts)
-
-(defn foo
-  "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+#_(test-frame (caca-palette))
