@@ -294,6 +294,36 @@
                   (to-iterators sym-strings fg-strings bg-strings)
                   default-sym default-fg default-bg))))
 
+(defrecord CacaSegment [symbols fg-pattern bg-pattern])
+
+(defn segment->strings [{:keys [symbols fg-pattern bg-pattern]}]
+  (let [to-string #(apply str (take (count symbols) (apply concat (repeat (seq %)))))
+        fg-string (to-string fg-pattern)
+        bg-string (to-string bg-pattern)]
+    [symbols fg-string bg-string]))
+
+#_(segment->strings (->CacaSegment "florian" "fl" "g"))
+
+(defn segments->strings [segments]
+  (let [strings     (map segment->strings segments)
+        grep        (fn [index] (map #(get % index) strings))
+        sym-strings (grep 0)
+        fg-strings  (grep 1)
+        bg-strings  (grep 2)]
+    [(apply str sym-strings) (apply str fg-strings) (apply str bg-strings)]))
+
+#_(segments->strings [(->CacaSegment "florian" "fl" "g") (->CacaSegment "hassanen" "ha" "i")])
+
+(defn frame-from-segments
+  ([segments] (frame-from-segments nil nil nil))
+  ([segments default-sym default-fg default-bg] (frame-from-segments nil segments default-sym default-fg default-bg))
+  ([w segments] (frame-from-segments w segments nil nil nil))
+  ([w segments default-sym default-fg default-bg]
+   (let [[sym-string fg-string bg-string] (segments->strings segments)]
+     (frame-from-strings w sym-string fg-string bg-string default-sym default-fg default-bg))))
+
+#_(frame-from-segments 3 [(->CacaSegment "florian" "fl" "g") (->CacaSegment "hassanen" "ha" "i")])
+
 (defn append-strings-to-frame
   ([frame sym-string fg-string bg-string] (append-strings-to-frame nil frame sym-string fg-string bg-string))
   ([h {:keys [width height caca-iterators default-sym default-fg default-bg] :as frame} sym-string fg-string bg-string]
@@ -348,6 +378,12 @@
            (apply str ks)
            (apply str (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 ks)))
            (apply str ks))))
+
+(defn caca-segments []
+  (frame-from-segments 10 [(->CacaSegment "A longer text which need not to be styled" "bab" "m")
+                           (->CacaSegment "Followed by another segment..." "tTt" "0")]))
+
+#_(def ccf (caca-segments))
 
 #_(let [frame (caca-palette)
         [canvas window] (test-window frame)]
