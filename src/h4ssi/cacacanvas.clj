@@ -155,9 +155,11 @@
 
 #_(compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
 
-(defrecord CacaFrame [width height caca-iterators])
+(defrecord CacaFrame [width height caca-iterators default-sym default-fg default-bg])
 (defprotocol CacaCanvas
   (render-caca-frame [this caca-frame]))
+
+(declare char->Color)
 
 (defn cacacanvas
   ([] (cacacanvas nil))
@@ -168,27 +170,32 @@
                        (if f
                          (java.awt.Dimension. (* fw (:width f)) (* fh (:height f)))
                          (java.awt.Dimension. 0 0)))]
-     (doto (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaCanvas] []
-             (isOpaque [] true)
-             (paintComponent [g]
-                             (let [f @frame]
-                               (when f
-                                 (doseq [[hh ascii] (map vector (range (:height f)) (:caca-iterators f))]
-                                   (.drawString g ascii 0 (+ fa (* fh hh)))))))
-             (render_caca_frame [f]
-                                (reset! frame f)
-                                (.repaint this)))
-       (.setMinimumSize (size))
-       (.setMaximumSize (size))
-       (.setPreferredSize (size))
-       (.setForeground java.awt.Color/RED)))))
+     (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaCanvas] []
+       (isOpaque [] true)
+       (paintComponent [g]
+                       (proxy-super paintComponent g)
+                       (let [f @frame]
+                         (when f
+                           (doseq [[hh ascii] (map vector (range (:height f)) (:caca-iterators f))]
+                             (.drawString g ascii 0 (+ fa (* fh hh)))))))
+       (render_caca_frame [f]
+                          (reset! frame f)
+                          (doto this
+                            (.setForeground (char->Color (:default-fg f)))
+                            (.setBackground (char->Color (:default-bg f)))
+                            (.repaint)))
+       (getMinimumSize [] (size))
+       (getPreferredSize [] (size))))))
 
-(defn test-frame [caca-frame]
-  (doto
-    (javax.swing.JFrame. "hello")
-    (.add (cacacanvas caca-frame) java.awt.BorderLayout/CENTER)
-    (.pack)
-    (.setVisible true)))
+(defn test-window [caca-frame]
+  (let [canvas (cacacanvas caca-frame)
+        window (doto
+                 (javax.swing.JFrame. "hello")
+                 (.setDefaultCloseOperation javax.swing.WindowConstants/DISPOSE_ON_CLOSE)
+                 (.add canvas java.awt.BorderLayout/CENTER)
+                 (.pack)
+                 (.setVisible true))]
+    [canvas window]))
 
 (def gray-index (map (comp char (partial + (long \0))) (range 8)))
 (def color-index (interleave
@@ -284,7 +291,20 @@
          to-caca-chars #(mapv ->CacaChar %1 (to-colors %2) (to-colors %3))
          to-iterators  (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
      (->CacaFrame w h
-                  (to-iterators sym-strings fg-strings bg-strings)))))
+                  (to-iterators sym-strings fg-strings bg-strings)
+                  default-sym default-fg default-bg))))
+
+(defn append-strings-to-frame
+  ([frame sym-string fg-string bg-string] (append-strings-to-frame nil frame sym-string fg-string bg-string))
+  ([h {:keys [width height caca-iterators default-sym default-fg default-bg] :as frame} sym-string fg-string bg-string]
+   (let [{appended-height :height
+          appended-caca-iterators :caca-iterators} (frame-from-strings
+                                                    width h
+                                                    sym-string fg-string bg-string
+                                                    default-sym default-fg default-bg)]
+     (assoc frame
+       :height (+ height appended-height)
+       :caca-iterators (concat caca-iterators appended-caca-iterators)))))
 
 (defn caca-tree []
   (frame-from-strings
@@ -329,4 +349,13 @@
            (apply str (mapcat (fn [[l _ _ r]] (vector r r l l)) (partition 4 ks)))
            (apply str ks))))
 
-#_(test-frame (caca-palette))
+#_(let [frame (caca-palette)
+        [canvas window] (test-window frame)]
+    (def ccc canvas)
+    (def ccf frame)
+    (def ccw window))
+
+#_(let [frame (append-strings-to-frame ccf "asdfbs" "gggggg" "GGGGGG")]
+    (def ccf frame)
+    (render-caca-frame ccc frame)
+    (.pack ccw))
