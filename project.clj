@@ -1,4 +1,4 @@
-(defproject h4ssi/cacacanvas "0.1.0"
+(defproject h4ssi/cacacanvas "0.2.0-SNAPSHOT"
   :description "Swing component to display colored ascii art"
   :url "https://github.com/H4ssi/cacacanvas"
   :license {:name "Eclipse Public License"
