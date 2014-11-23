@@ -156,20 +156,54 @@
 #_(compile-caca-chars (mapv ->CacaChar (seq "asdfasdf") (repeat :blue) (apply concat (repeat [:red :red :yellow]))))
 
 (defrecord CacaFrame [width height caca-iterators default-sym default-fg default-bg])
+
+(defrecord CacaAnimationFrame [width height caca-iterators default-sym default-fg default-bg duration])
+
+(defn CacaFrame->CacaAnimationFrame [caca-frame duration] (map->CacaAnimationFrame (assoc caca-frame :duration duration)))
+
+(defrecord CacaAnimation [frames loops?])
+
 (defprotocol CacaCanvas
-  (render-caca-frame [this caca-frame]))
+  (render-caca-frame [this caca-frame])
+  (render-caca-animation [this caca-animation]))
 
 (declare char->Color)
 
 (defn cacacanvas
   ([] (cacacanvas nil))
   ([frame]
-   (let [[fw fh fa] (font-bounds (font))
-         frame      (atom frame)
-         size       #(let [f @frame]
-                       (if f
-                         (java.awt.Dimension. (* fw (:width f)) (* fh (:height f)))
-                         (java.awt.Dimension. 0 0)))]
+   (let [[fw fh fa]  (font-bounds (font))
+         frame       (atom frame)
+         size        #(let [f @frame]
+                        (if f
+                          (java.awt.Dimension. (* fw (:width f)) (* fh (:height f)))
+                          (java.awt.Dimension. 0 0)))
+         render      (fn [this f]
+                       (reset! frame f)
+                           (doto this
+                             (.setForeground (char->Color (:default-fg f)))
+                             (.setBackground (char->Color (:default-bg f)))
+                             (.repaint)))
+         timer       (doto
+                       (javax.swing.Timer. 1 nil)
+                       (.setRepeats false))
+         clear-timer (fn []
+                       ( doseq [l (seq (.getActionListeners timer))] (.removeActionListener timer l))
+                       (.setInitialDelay timer Integer/MAX_VALUE)
+                       (.restart timer)
+                       (.stop timer))
+         time-frame  (fn time-frame [this [caca-frame & caca-frames] loop-frames]
+                       (clear-timer)
+                       (if (and (nil? caca-frame) (nil? loop-frames))
+                         (do) ;fire done event
+                         (let [frame-to-render (or caca-frame (first loop-frames))]
+                           (render this frame-to-render)
+                           (let [next-frames (if caca-frame caca-frames (next loop-frames))]
+                             (.addActionListener timer (reify java.awt.event.ActionListener
+                                                         (actionPerformed [_ _] (time-frame this next-frames loop-frames))))
+                             (.setInitialDelay timer (:duration frame-to-render))
+                             (.start timer)))))]
+
      (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaCanvas] []
        (isOpaque [] true)
        (paintComponent [g]
@@ -179,11 +213,10 @@
                            (doseq [[hh ascii] (map vector (range (:height f)) (:caca-iterators f))]
                              (.drawString g ascii 0 (+ fa (* fh hh)))))))
        (render_caca_frame [f]
-                          (reset! frame f)
-                          (doto this
-                            (.setForeground (char->Color (:default-fg f)))
-                            (.setBackground (char->Color (:default-bg f)))
-                            (.repaint)))
+         (clear-timer)
+         (render this f))
+       (render_caca_animation [{:keys [frames loops?]}]
+                              (time-frame this frames (if loops? frames nil)))
        (getMinimumSize [] (size))
        (getPreferredSize [] (size))))))
 
@@ -336,6 +369,7 @@
        :height (+ height appended-height)
        :caca-iterators (concat caca-iterators appended-caca-iterators)))))
 
+
 (defn caca-tree []
   (frame-from-strings
    (str " @@ \n"
@@ -395,3 +429,8 @@
     (def ccf frame)
     (render-caca-frame ccc frame)
     (.pack ccw))
+
+#_(render-caca-animation ccc (->CacaAnimation
+                              [(CacaFrame->CacaAnimationFrame (frame-from-segments [(->CacaSegment "asdf" "X" " ")]) 500)
+                               (CacaFrame->CacaAnimationFrame (frame-from-segments [(->CacaSegment "ASDF" "X" " ")]) 500)]
+                              true))
