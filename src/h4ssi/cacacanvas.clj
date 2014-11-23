@@ -315,7 +315,7 @@
 #_(segments->strings [(->CacaSegment "florian" "fl" "g") (->CacaSegment "hassanen" "ha" "i")])
 
 (defn frame-from-segments
-  ([segments] (frame-from-segments nil nil nil))
+  ([segments] (frame-from-segments segments nil nil nil))
   ([segments default-sym default-fg default-bg] (frame-from-segments nil segments default-sym default-fg default-bg))
   ([w segments] (frame-from-segments w segments nil nil nil))
   ([w segments default-sym default-fg default-bg]
