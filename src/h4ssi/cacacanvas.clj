@@ -208,7 +208,6 @@
                              (.start timer)))))]
 
      (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaCanvas] []
-       (isOpaque [] true)
        (paintComponent [g]
                        (proxy-super paintComponent g)
                        (let [f @frame]
@@ -228,8 +227,17 @@
 (declare frame-from-segments)
 (declare ->CacaSegment)
 
-(defn caca-text-field [w]
+(defn caca-text-field [w default-fg default-bg]
   (let [text      (atom {:left [] :right nil})
+        blinking  (atom false)
+        color     (atom nil)
+        compl     #(let [rgb (seq (.getRGBColorComponents % nil))
+                         m   (apply min rgb)
+                         M   (apply max rgb)
+                         l   (* 0.5 (+ m M))]
+                     (if (> l 0.5)
+                       java.awt.Color/BLACK
+                       java.awt.Color/WHITE))
         text-str  #(let [{:keys [left right]} %] (apply str (concat left right)))
         typed     #(update-in %1 [:left] conj %2)
         pop-empty #(if (seq %) (pop %) %)
@@ -250,35 +258,62 @@
                          w    (.-width size)
                          h    (.-height size)]
                      (.setBounds canvas % 0 w h))
-        font-size (font-bounds (font))
-        font-w    (get font-size 0)
-        size      (let [[fw fh & _] font-size]
-                    (java.awt.Dimension. (* w fw) fh))
-        tf       (proxy [javax.swing.JPanel] []
-                   (getMinimumSize [] size)
-                   (getPreferredSize [] size)
-                   (getMaximumSize [] size))
+        [font-w
+         font-h
+         & _]     (font-bounds (font))
+        size      (java.awt.Dimension. (* w font-w) font-h)
+        positions #(let [left       (:left %)
+                         left-pos   (count left)
+                         offset-pos (-> left-pos (- (dec w)) (max 0))
+                         cursor-pos (- left-pos offset-pos)]
+                     [offset-pos cursor-pos])
+        tf        (proxy [javax.swing.JPanel] []
+                    (getMinimumSize [] size)
+                    (getPreferredSize [] size)
+                    (getMaximumSize [] size)
+                    (paintChildren [g]
+                                    (proxy-super paintChildren g)
+                                    (when @blinking
+                                      (let [cursor-pos (get (positions @text) 1)]
+                                      (.setColor g @color)
+                                      (.drawRect g (* cursor-pos font-w) 0 (dec font-w) (dec font-h))))))
         update   (fn []
-                   (let [text     @text
-                         text-str (text-str text)
-                         left-pos (count (:left text))
-                         offset   (-> left-pos (- (dec w)) (max 0) (* font-w))
-                         frame    (frame-from-segments [(->CacaSegment text-str "p" " ")])]
+                   (let [text       @text
+                         text-str   (text-str text)
+                         text-str   (if (= text-str "") " " text-str)
+                         offset-pos (get (positions text) 0)
+                         offset     (* offset-pos font-w -1)
+                         frame      (frame-from-segments
+                                     (max w (inc (count text-str)))
+                                     [(->CacaSegment text-str (str default-fg) (str default-bg))]
+                                     \space default-fg default-bg)
+                         iter       (first (:caca-iterators frame))]
+                     (.setIndex iter (count (:left text)))
+                     (reset! color (compl (.getAttribute iter java.awt.font.TextAttribute/BACKGROUND)))
                      (render-caca-frame canvas frame)
-                     (fit (- 0 offset))
-                     (.repaint tf)))]
+                     (fit offset)
+                     (.repaint tf)))
+        timer     (javax.swing.Timer. 500 (reify java.awt.event.ActionListener
+                                            (actionPerformed [_ _]
+                                                             (swap! blinking not)
+                                                             (.repaint tf))))
+        recursor  (fn []
+                    (reset! blinking true)
+                    (.restart timer)
+                    (.repaint tf))
+        no-cursor (fn []
+                    (.restart timer)
+                    (.stop timer)
+                    (reset! blinking false)
+                    (.repaint tf))]
     (.setLayout tf nil)
     (.add tf canvas)
-    (fit 0)
+    (update)
     (.addMouseListener tf (proxy [java.awt.event.MouseAdapter] []
                             (mouseClicked [_] (.requestFocusInWindow tf))))
     (.addFocusListener tf (reify java.awt.event.FocusListener
-                            (focusGained [_ _]
-                                         (render-caca-frame canvas (frame-from-segments [(->CacaSegment "focused" "t" " ")]))
-                                         (fit 0))
-                            (focusLost [_ _]
-                                       (render-caca-frame canvas (frame-from-segments [(->CacaSegment "focused1" "t" " ")]))
-                                       (fit 0))))
+                            (focusGained [_ _] (recursor))
+                            (focusLost [_ _] (no-cursor))))
     (.addKeyListener tf (reify java.awt.event.KeyListener
                           (keyTyped [_ e]
                                     (let [c (.getKeyChar e)
@@ -288,20 +323,22 @@
                                        (got \u007f)     (swap! text delete)
                                        (got \newline)   (println "enter")
                                        :else            (swap! text typed c))
-                                      (update)))
+                                      (update)
+                                      (recursor)))
                           (keyPressed [_ e]
                                       (let [c (.getKeyCode e)
                                             got (partial = c)]
                                         (cond
                                          (got java.awt.event.KeyEvent/VK_LEFT) (swap! text go-left)
                                          (got java.awt.event.KeyEvent/VK_RIGHT) (swap! text go-right))
-                                        (update)))
+                                        (update)
+                                        (recursor)))
                           (keyReleased [_ e])))
 
     (.setFocusable tf true)
     tf))
 
-#_(test-window (caca-palette))
+(test-window (caca-palette))
 
 (defn test-window [caca-frame]
   (let [canvas (cacacanvas caca-frame)
@@ -309,7 +346,7 @@
                  (javax.swing.JFrame. "hello")
                  (.setDefaultCloseOperation javax.swing.WindowConstants/DISPOSE_ON_CLOSE)
                  (.add canvas java.awt.BorderLayout/CENTER)
-                 (.add (caca-text-field 20) java.awt.BorderLayout/SOUTH)
+                 (.add (caca-text-field 20 \a \0) java.awt.BorderLayout/SOUTH)
                  (.pack)
                  (.setVisible true))]
     [canvas window]))
