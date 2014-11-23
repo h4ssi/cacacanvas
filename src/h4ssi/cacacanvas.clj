@@ -225,12 +225,91 @@
        (getMinimumSize [] (size))
        (getPreferredSize [] (size))))))
 
+(declare frame-from-segments)
+(declare ->CacaSegment)
+
+(defn caca-text-field [w]
+  (let [text      (atom {:left [] :right nil})
+        text-str  #(let [{:keys [left right]} %] (apply str (concat left right)))
+        typed     #(update-in %1 [:left] conj %2)
+        pop-empty #(if (seq %) (pop %) %)
+        backspace #(update-in % [:left] pop-empty)
+        delete    #(update-in % [:right] next)
+        go-left   (fn [{:keys [left right] :as text}]
+                    (if (empty? left)
+                      text
+                      {:left (pop left)
+                       :right (conj right (peek left))}))
+        go-right  (fn [{:keys [left right] :as text}]
+                    (if (empty? right)
+                      text
+                      {:left (conj left (first right))
+                       :right (next right)}))
+        canvas    (cacacanvas)
+        fit       #(let [size (.getPreferredSize canvas)
+                         w    (.-width size)
+                         h    (.-height size)]
+                     (.setBounds canvas % 0 w h))
+        font-size (font-bounds (font))
+        font-w    (get font-size 0)
+        size      (let [[fw fh & _] font-size]
+                    (java.awt.Dimension. (* w fw) fh))
+        tf       (proxy [javax.swing.JPanel] []
+                   (getMinimumSize [] size)
+                   (getPreferredSize [] size)
+                   (getMaximumSize [] size))
+        update   (fn []
+                   (let [text     @text
+                         text-str (text-str text)
+                         left-pos (count (:left text))
+                         offset   (-> left-pos (- (dec w)) (max 0) (* font-w))
+                         frame    (frame-from-segments [(->CacaSegment text-str "p" " ")])]
+                     (render-caca-frame canvas frame)
+                     (fit (- 0 offset))
+                     (.repaint tf)))]
+    (.setLayout tf nil)
+    (.add tf canvas)
+    (fit 0)
+    (.addMouseListener tf (proxy [java.awt.event.MouseAdapter] []
+                            (mouseClicked [_] (.requestFocusInWindow tf))))
+    (.addFocusListener tf (reify java.awt.event.FocusListener
+                            (focusGained [_ _]
+                                         (render-caca-frame canvas (frame-from-segments [(->CacaSegment "focused" "t" " ")]))
+                                         (fit 0))
+                            (focusLost [_ _]
+                                       (render-caca-frame canvas (frame-from-segments [(->CacaSegment "focused1" "t" " ")]))
+                                       (fit 0))))
+    (.addKeyListener tf (reify java.awt.event.KeyListener
+                          (keyTyped [_ e]
+                                    (let [c (.getKeyChar e)
+                                          got (partial = c)]
+                                      (cond
+                                       (got \backspace) (swap! text backspace)
+                                       (got \u007f)     (swap! text delete)
+                                       (got \newline)   (println "enter")
+                                       :else            (swap! text typed c))
+                                      (update)))
+                          (keyPressed [_ e]
+                                      (let [c (.getKeyCode e)
+                                            got (partial = c)]
+                                        (cond
+                                         (got java.awt.event.KeyEvent/VK_LEFT) (swap! text go-left)
+                                         (got java.awt.event.KeyEvent/VK_RIGHT) (swap! text go-right))
+                                        (update)))
+                          (keyReleased [_ e])))
+
+    (.setFocusable tf true)
+    tf))
+
+#_(test-window (caca-palette))
+
 (defn test-window [caca-frame]
   (let [canvas (cacacanvas caca-frame)
         window (doto
                  (javax.swing.JFrame. "hello")
                  (.setDefaultCloseOperation javax.swing.WindowConstants/DISPOSE_ON_CLOSE)
                  (.add canvas java.awt.BorderLayout/CENTER)
+                 (.add (caca-text-field 20) java.awt.BorderLayout/SOUTH)
                  (.pack)
                  (.setVisible true))]
     [canvas window]))
