@@ -165,7 +165,9 @@
 
 (defprotocol CacaCanvas
   (render-caca-frame [this caca-frame])
-  (render-caca-animation [this caca-animation]))
+  (render-caca-animation [this caca-animation])
+  (add-animation-finished-listener [this listener])
+  (remove-animation-finished-listener [this listener]))
 
 (declare char->Color)
 
@@ -174,6 +176,7 @@
   ([frame]
    (let [[fw fh fa]  (font-bounds (font))
          frame       (atom frame)
+         listeners   (atom #{})
          size        #(let [f @frame]
                         (if f
                           (java.awt.Dimension. (* fw (:width f)) (* fh (:height f)))
@@ -195,7 +198,7 @@
          time-frame  (fn time-frame [this [caca-frame & caca-frames] loop-frames]
                        (clear-timer)
                        (if (and (nil? caca-frame) (nil? loop-frames))
-                         (do) ;fire done event
+                         (doseq [l @listeners] (.actionPerformed l nil)) ; TODO proper ActionEvent
                          (let [frame-to-render (or caca-frame (first loop-frames))]
                            (render this frame-to-render)
                            (let [next-frames (if caca-frame caca-frames (next loop-frames))]
@@ -217,6 +220,8 @@
          (render this f))
        (render_caca_animation [{:keys [frames loops?]}]
                               (time-frame this frames (if loops? frames nil)))
+       (add_animation_finished_listener [l] (swap! listeners conj l))
+       (remove_animation_finished_listener [l] (swap! listeners disj l))
        (getMinimumSize [] (size))
        (getPreferredSize [] (size))))))
 
@@ -369,7 +374,6 @@
        :height (+ height appended-height)
        :caca-iterators (concat caca-iterators appended-caca-iterators)))))
 
-
 (defn caca-tree []
   (frame-from-strings
    (str " @@ \n"
@@ -421,6 +425,8 @@
 
 #_(let [frame (caca-palette)
         [canvas window] (test-window frame)]
+    (add-animation-finished-listener canvas (reify java.awt.event.ActionListener
+                                              (actionPerformed [_ _] (println "animation finished"))))
     (def ccc canvas)
     (def ccf frame)
     (def ccw window))
