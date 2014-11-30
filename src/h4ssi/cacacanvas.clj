@@ -312,7 +312,7 @@
                                        (.setColor g @color)
                                        (.drawRect g (* cursor-pos font-w) 0 (dec font-w) (dec font-h)))))
                     (current_text
-                     ([] (let [text @text] (apply str (concat (:left text) (:right text)))))
+                     ([] (text-str @text))
                      ([new-text] (.current_text this new-text nil))
                      ([new-text cursor-pos]
                       (let [cursor-pos   (case cursor-pos
@@ -373,16 +373,6 @@
 
     (.setFocusable tf true)
     tf))
-
-#_(let [[_ t _] (test-window (caca-palette))]
-  (def ttt t))
-
-#_(.add_change_listener ttt (reify java.awt.event.ActionListener
-                              (actionPerformed [_ _] (println "type"))))
-#_(.add_return_listener ttt (reify java.awt.event.ActionListener
-                              (actionPerformed [_ _] (println "return"))))
-
-#_(.current_text ttt "hoi")
 
 (defn test-window [caca-frame]
   (let [canvas (cacacanvas caca-frame)
