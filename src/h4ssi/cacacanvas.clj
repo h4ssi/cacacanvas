@@ -419,7 +419,7 @@
 
 (def index (zipmap (concat gray-index color-index) (concat (gray-shades) (colors))))
 
-(defn char->Color [c] (get index c))
+(defn char->Color [c] (get index c java.awt.Color/BLACK))
 
 (defn spaces-to-colors
   ([color-char-seq]
@@ -476,7 +476,7 @@
          bg-strings    (normalize pad-bg bg-strings)
          fg-strings    (map spaces-to-colors fg-strings)
          bg-strings    (map spaces-to-colors bg-strings)
-         to-colors     (partial map (partial get index))
+         to-colors     (partial map char->Color)
          to-caca-chars #(mapv ->CacaChar %1 (to-colors %2) (to-colors %3))
          to-iterators  (partial map (comp caca-iterator compile-caca-chars to-caca-chars))  ]
      (->CacaFrame w h
