@@ -486,7 +486,9 @@
 (defrecord CacaSegment [symbols fg-pattern bg-pattern])
 
 (defn segment->strings [{:keys [symbols fg-pattern bg-pattern]}]
-  (let [to-string #(apply str (take (count symbols) (apply concat (repeat (seq %)))))
+  (let [to-string #(let [pattern-seq (seq %)
+                         pattern-seq (if (empty? pattern-seq) [\space] pattern-seq)]
+                      (apply str (take (count symbols) (apply concat (repeat pattern-seq)))))
         fg-string (to-string fg-pattern)
         bg-string (to-string bg-pattern)]
     [symbols fg-string bg-string]))
