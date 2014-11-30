@@ -345,8 +345,10 @@
                                       (cond
                                        (got \backspace) (swap! text backspace)
                                        (got \u007f)     (swap! text delete)
-                                       (got \newline)   (println "enter")
+                                       (got \newline)   nil
                                        :else            (swap! text typed c))
+                                      (doseq [l @change-ls] (.actionPerformed l nil))
+                                      (when (got \newline) (doseq [l @return-ls] (.actionPerformed l nil)))
                                       (update)
                                       (recursor)))
                           (keyPressed [_ e]
@@ -364,6 +366,11 @@
 
 #_(let [[_ t _] (test-window (caca-palette))]
   (def ttt t))
+
+#_(.add_change_listener ttt (reify java.awt.event.ActionListener
+                              (actionPerformed [_ _] (println "type"))))
+#_(.add_return_listener ttt (reify java.awt.event.ActionListener
+                              (actionPerformed [_ _] (println "return"))))
 
 #_(.current_text ttt "hoi")
 
