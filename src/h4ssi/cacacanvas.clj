@@ -227,8 +227,20 @@
 (declare frame-from-segments)
 (declare ->CacaSegment)
 
+(defprotocol CacaTextField
+  (current-text
+   [this]
+   [this new-text]
+   [this new-text cursor-position])
+  (add-change-listener [this listener])
+  (remove-change-listener [this listener])
+  (add-return-listener [this listener])
+  (remote-return-listener [this listener]))
+
 (defn caca-text-field [w default-fg default-bg]
   (let [text      (atom {:left [] :right nil})
+        change-ls (atom #{})
+        return-ls (atom #{})
         blinking  (atom false)
         color     (atom nil)
         compl     #(let [rgb (seq (.getRGBColorComponents % nil))
@@ -262,47 +274,59 @@
          font-h
          & _]     (font-bounds (font))
         size      (java.awt.Dimension. (* w font-w) font-h)
-        positions #(let [left       (:left %)
-                         left-pos   (count left)
-                         offset-pos (-> left-pos (- (dec w)) (max 0))
-                         cursor-pos (- left-pos offset-pos)]
-                     [offset-pos cursor-pos])
-        tf        (proxy [javax.swing.JPanel] []
+        positions (fn [text] (let [left       (:left text)
+                                   left-pos   (count left)
+                                   offset-pos (-> left-pos (- (dec w)) (max 0))
+                                   cursor-pos (- left-pos offset-pos)]
+                               [offset-pos cursor-pos]))
+        update    (fn [] (let [text       @text
+                               text-str   (text-str text)
+                               text-str   (if (= text-str "") " " text-str)
+                               offset-pos (get (positions text) 0)
+                               offset     (* offset-pos font-w -1)
+                               frame      (frame-from-segments
+                                           (max w (inc (count text-str)))
+                                           [(->CacaSegment text-str (str default-fg) (str default-bg))]
+                                           \space default-fg default-bg)
+                               iter       (first (:caca-iterators frame))]
+                           (.setIndex iter (count (:left text)))
+                           (reset! color (compl (.getAttribute iter java.awt.font.TextAttribute/BACKGROUND)))
+                           (render-caca-frame canvas frame)
+                           (fit offset)))
+        tf        (proxy [javax.swing.JPanel h4ssi.cacacanvas.CacaTextField] []
                     (getMinimumSize [] size)
                     (getPreferredSize [] size)
                     (getMaximumSize [] size)
                     (paintChildren [g]
-                                    (proxy-super paintChildren g)
-                                    (when @blinking
-                                      (let [cursor-pos (get (positions @text) 1)]
-                                      (.setColor g @color)
-                                      (.drawRect g (* cursor-pos font-w) 0 (dec font-w) (dec font-h))))))
-        update   (fn []
-                   (let [text       @text
-                         text-str   (text-str text)
-                         text-str   (if (= text-str "") " " text-str)
-                         offset-pos (get (positions text) 0)
-                         offset     (* offset-pos font-w -1)
-                         frame      (frame-from-segments
-                                     (max w (inc (count text-str)))
-                                     [(->CacaSegment text-str (str default-fg) (str default-bg))]
-                                     \space default-fg default-bg)
-                         iter       (first (:caca-iterators frame))]
-                     (.setIndex iter (count (:left text)))
-                     (reset! color (compl (.getAttribute iter java.awt.font.TextAttribute/BACKGROUND)))
-                     (render-caca-frame canvas frame)
-                     (fit offset)
-                     (.repaint tf)))
+                                   (proxy-super paintChildren g)
+                                   (when @blinking
+                                     (let [cursor-pos (get (positions @text) 1)]
+                                       (.setColor g @color)
+                                       (.drawRect g (* cursor-pos font-w) 0 (dec font-w) (dec font-h)))))
+                    (current_text
+                     ([] (let [text @text] (apply str (concat (:left text) (:right text)))))
+                     ([new-text] (.current_text this new-text nil))
+                     ([new-text cursor-pos]
+                      (let [cursor-pos   (case cursor-pos
+                                           nil (count (:left @text))
+                                           -1  (count new-text)
+                                           (min cursor-pos (count new-text)))
+                            [left right] (split-at cursor-pos (seq new-text))]
+                        (swap! text assoc :left (vec left) :right right)
+                        (update)
+                        (.repaint this))))
+                    (add_change_listener [l] (swap! change-ls conj l))
+                    (remove_change_listener [l] (swap! change-ls disj l))
+                    (add_return_listener [l] (swap! return-ls conj l))
+                    (remove_return_listener [l] (swap! return-ls disj l)))
         timer     (javax.swing.Timer. 500 (reify java.awt.event.ActionListener
                                             (actionPerformed [_ _]
                                                              (swap! blinking not)
                                                              (.repaint tf))))
-        recursor  (fn []
-                    (reset! blinking true)
+        recursor  (fn [] (reset! blinking true)
                     (.restart timer)
                     (.repaint tf))
-        no-cursor (fn []
-                    (.restart timer)
+        no-cursor (fn [] (.restart timer)
                     (.stop timer)
                     (reset! blinking false)
                     (.repaint tf))]
@@ -338,18 +362,22 @@
     (.setFocusable tf true)
     tf))
 
-(test-window (caca-palette))
+#_(let [[_ t _] (test-window (caca-palette))]
+  (def ttt t))
+
+#_(.current_text ttt "hoi")
 
 (defn test-window [caca-frame]
   (let [canvas (cacacanvas caca-frame)
+        tf     (caca-text-field 20 \a \0)
         window (doto
                  (javax.swing.JFrame. "hello")
                  (.setDefaultCloseOperation javax.swing.WindowConstants/DISPOSE_ON_CLOSE)
                  (.add canvas java.awt.BorderLayout/CENTER)
-                 (.add (caca-text-field 20 \a \0) java.awt.BorderLayout/SOUTH)
+                 (.add tf java.awt.BorderLayout/SOUTH)
                  (.pack)
                  (.setVisible true))]
-    [canvas window]))
+    [canvas tf window]))
 
 (def gray-index (map (comp char (partial + (long \0))) (range 8)))
 (def color-index (interleave
@@ -540,10 +568,11 @@
 #_(def ccf (caca-segments))
 
 #_(let [frame (caca-palette)
-        [canvas window] (test-window frame)]
+        [canvas tf window] (test-window frame)]
     (add-animation-finished-listener canvas (reify java.awt.event.ActionListener
                                               (actionPerformed [_ _] (println "animation finished"))))
     (def ccc canvas)
+    (def cct tf)
     (def ccf frame)
     (def ccw window))
 
