@@ -265,6 +265,14 @@
                       text
                       {:left (conj left (first right))
                        :right (next right)}))
+        go-home   (fn [{:keys [left right] :as text}]
+                    (if (empty? left)
+                      text
+                      {:left [] :right (concat left right)}))
+        go-end    (fn [{:keys [left right] :as text}]
+                    (if (empty? right)
+                      text
+                      {:left (vec (concat left right)) :right nil}))
         canvas    (cacacanvas)
         fit       #(let [size (.getPreferredSize canvas)
                          w    (.-width size)
@@ -356,7 +364,9 @@
                                             got (partial = c)]
                                         (cond
                                          (got java.awt.event.KeyEvent/VK_LEFT) (swap! text go-left)
-                                         (got java.awt.event.KeyEvent/VK_RIGHT) (swap! text go-right))
+                                         (got java.awt.event.KeyEvent/VK_RIGHT) (swap! text go-right)
+                                         (got java.awt.event.KeyEvent/VK_HOME) (swap! text go-home)
+                                         (got java.awt.event.KeyEvent/VK_END) (swap! text go-end))
                                         (update)
                                         (recursor)))
                           (keyReleased [_ e])))
