@@ -525,6 +525,10 @@
        :height (+ height appended-height)
        :caca-iterators (concat caca-iterators appended-caca-iterators)))))
 
+(defn append-segments-to-frame [frame segments]
+  (apply append-strings-to-frame frame (segments->strings segments)))
+
+
 (defn caca-tree []
   (frame-from-strings
    (str " @@ \n"
